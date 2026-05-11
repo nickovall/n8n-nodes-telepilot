@@ -1,5 +1,4 @@
 import {
-	ICredentialTestRequest,
 	ICredentialType,
 	INodeProperties,
 } from 'n8n-workflow';
@@ -36,11 +35,6 @@ export class TelePilotApi implements ICredentialType {
 		},
 	];
 
-	test: ICredentialTestRequest = {
-		request: {
-			baseURL: 'http://ls.telepilot.co:4413',
-			url: '?key=empty',
-			method: 'POST',
-		},
-	};
+	// Credential test removed: external POST to vendor license server (ls.telepilot.co:4413) over plain HTTP.
+	// Credentials are validated at first use against Telegram MTProto servers directly.
 }
