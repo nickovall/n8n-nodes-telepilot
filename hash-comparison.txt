@@ -1,0 +1,22 @@
+# Hash Comparison — @telepilotco/tdlib-binaries-prebuilt v1.8.14
+# Date: 2026-05-11
+# VPS: ubuntu@152.228.128.114 (x86_64, glibc 2.31)
+
+REBUILT:  0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a  /tmp/tdlib-build/prebuilds/lib/libtdjson.so
+ORIGINAL: UNAVAILABLE — distribution URL returns HTTP 404
+
+# URL attempted: https://telepilot.co/tdlib-binaries-prebuilt/v1.8.14/linux-x64-glibc.tar.gz
+# GitHub releases: EMPTY (no releases published)
+# npm tarball (@telepilotco/tdlib-binaries-prebuilt@1.8.14): 2 files only (README.md + package.json, 3KB — no binary)
+# Conclusion: Vendor binary distribution is broken/removed for this version.
+#             Hash comparison NOT POSSIBLE — no original binary to compare against.
+MATCH: NOT_APPLICABLE
+
+# Build details (from rebuilt info.txt):
+# TDLib commit: 66234ae2537a99ec0eaf7b0857245a6e5c2d2bc9
+# cmake: 3.16.3 (Ubuntu 20.04)
+# gcc:   9.4.0 (Ubuntu 9.4.0-1ubuntu1~20.04.2)
+# glibc: 2.31
+# OpenSSL: 1.1.1f
+# zlib: 1.2.11
+# SHA256: 0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a

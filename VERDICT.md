@@ -27,21 +27,34 @@ See `dependency-report.md` for full findings.
 
 ## Binary Build
 
-**SKIPPED** — Docker not available on this Windows machine. The Makefile-based Docker build requires Linux or Docker Desktop. Build must be run on a Linux VPS.
+**SUCCESS** — TDLib rebuilt from source on Linux VPS (ubuntu@152.228.128.114).
 
-See `build.log` for details.
+- Build environment: Docker `ubuntu:20.04`, gcc 9.4.0, cmake 3.16.3, glibc 2.31
+- TDLib commit: `66234ae2537a99ec0eaf7b0857245a6e5c2d2bc9`
+- Output: `libtdjson.so` 26MB, stripped
+- SHA256 rebuilt: `0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a`
+
+See `build.log` for full cmake output.
 
 ---
 
 ## Hash Comparison
 
-**NOT RUN** — No rebuilt binary was produced (build was skipped). Distributed binary was not replaced.
+**NOT_APPLICABLE** — Rebuilt binary produced, but distributed binary is **UNAVAILABLE**:
+
+- `https://telepilot.co/tdlib-binaries-prebuilt/v1.8.14/linux-x64-glibc.tar.gz` → **HTTP 404**
+- GitHub releases for `nickovall/tdlib-binaries-prebuilt` → **empty, no releases published**
+- npm tarball `@telepilotco/tdlib-binaries-prebuilt@1.8.14` → **2 files only** (README.md + package.json, 3KB — no binary included)
+
+The vendor's binary distribution endpoint is broken or removed. Any fresh `npm install` of this package would fail to download the binary. The binary used by existing installations was downloaded at some prior point when the URL was still live — that binary cannot be retrieved for comparison.
+
+See `hash-comparison.txt` for details.
 
 ---
 
 ## Final status
 
-⚠️  **SUSPICIOUS** — review `audit-report.md` manually
+⚠️  **SUSPICIOUS** — review `audit-report.md` and `hash-comparison.txt` manually
 
 The source code itself contains no proven backdoor or exfiltration. However, the package has two significant trust gaps that must be resolved before production use:
 
@@ -53,23 +66,24 @@ The source code itself contains no proven backdoor or exfiltration. However, the
 
 ## Recommended action
 
-**Do not use this package in production without completing two additional steps:**
+**Three actions required:**
 
-1. **Network audit the credential test:** Install the package in an isolated environment, connect a network monitor (Wireshark or `mitmproxy`), and click "Test Credentials" in n8n. Capture the exact HTTP request body sent to `http://ls.telepilot.co:4413`. If any of `apiId`, `apiHash`, or `phoneNumber` appear in the request, escalate to CRITICAL and stop all use immediately.
+1. **[DONE — Fix 1] Credential test call removed.** The `test` block posting to `http://ls.telepilot.co:4413` has been removed from `credentials/TelePilotApi.credentials.ts`. See `fix-report.md`.
 
-2. **Rebuild the binary on Linux:** Run Agent 3 on a Linux machine with Docker installed:
-   ```bash
-   cd tdlib-binaries-prebuilt
-   make build-lib-docker-linux-x64-glibc 2>&1 | tee ../n8n-nodes-telepilot/build.log
+2. **[NEW FINDING] Distribution URL is broken (404).** `https://telepilot.co/tdlib-binaries-prebuilt/v1.8.14/linux-x64-glibc.tar.gz` returns HTTP 404. Any fresh `npm install` will fail to download the binary. The vendor binary in existing installations cannot be verified — the source for comparison is gone.
+
+   **Action:** Replace the vendor binary in your n8n installation with the freshly rebuilt one:
    ```
-   Then run Agent 4 to hash-compare the rebuilt binary against the distributed one. If hashes match, the binary is trustworthy. If they do not match, replace the distributed binary with the locally built version and add a reminder to repeat this replacement after every `npm install` or n8n update.
+   SHA256:    0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a
+   Built from: TDLib commit 66234ae2537a99ec0eaf7b0857245a6e5c2d2bc9
+   Built with: gcc 9.4.0 / cmake 3.16.3 / glibc 2.31 / OpenSSL 1.1.1f / zlib 1.2.11
+   ```
+   The rebuilt `libtdjson.so` is the only verifiable binary derived from published source.
+
+3. **[HISTORICAL] Network audit the credential test endpoint.** If you ran an older installed version before Fix 1, intercept traffic with Wireshark/mitmproxy on credential test to confirm what data was sent to `ls.telepilot.co:4413`.
 
 ---
 
-## Reminder (if binary is replaced after future build)
+## Reminder — binary after npm install
 
-After every `npm install` or n8n update, the distributed binary in:
-```
-node_modules/@telepilotco/tdlib-binaries-prebuilt/prebuilds/
-```
-will be overwritten with the vendor-distributed version. The locally rebuilt binary must be re-copied after each such event. Consider automating this with a `postinstall` script in your local n8n deployment.
+After every `npm install` or n8n update, the `node-pre-gyp install` script will attempt to re-download from the (now broken 404) URL and will fail or leave no binary. The rebuilt `libtdjson.so` must be replaced manually after each such event. Consider pinning the binary in your deployment rather than relying on the vendor CDN.
