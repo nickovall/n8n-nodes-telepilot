@@ -1,22 +1,45 @@
 # Hash Comparison — @telepilotco/tdlib-binaries-prebuilt v1.8.14
 # Date: 2026-05-11
-# VPS: ubuntu@152.228.128.114 (x86_64, glibc 2.31)
+# VPS: ubuntu@152.228.128.114 (x86_64, glibc 2.31 / musl via Alpine 3.16)
 
-REBUILT:  0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a  /tmp/tdlib-build/prebuilds/lib/libtdjson.so
-ORIGINAL: UNAVAILABLE — distribution URL returns HTTP 404
+# --- Build 1: glibc (Ubuntu 20.04) ---
+REBUILT_GLIBC:  0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a
+ORIGINAL_GLIBC: UNAVAILABLE — distribution URL returns HTTP 404
+MATCH_GLIBC: NOT_APPLICABLE
 
+# Deployment test: glibc binary failed to load in the n8n container (Alpine Linux v3.22, musl Node.js v24).
+# Error: "Error relocating libtdjson.so: fcntl64: symbol not found"
+# Conclusion: n8n uses musl libc; glibc binary is incompatible. Musl build required.
+
+# --- Build 2: musl (Alpine 3.16) ---
+# Status: COMPLETE (2026-05-11/12)
+# URL attempted: https://telepilot.co/tdlib-binaries-prebuilt/v1.8.14/linux-x64-musl.tar.gz
+# (also 404 — no musl variant available for comparison)
+REBUILT_MUSL:   9f9817d0909fbe6db6c056a5f3b5ead043240565d756858021d68d26cf418fde
+ORIGINAL_MUSL:  UNAVAILABLE — distribution URL returns HTTP 404
+MATCH_MUSL:     NOT_APPLICABLE
+
+# Build 2 (musl) details:
+# TDLib commit: 66234ae2537a99ec0eaf7b0857245a6e5c2d2bc9
+# cmake: 3.23.5 (Alpine 3.16)
+# gcc:   11.2.1 (musl)
+# musl:  1.2.3 / OpenSSL: 1.1.1w (static) / zlib: 1.2.12 (static)
+# SHA256: 9f9817d0909fbe6db6c056a5f3b5ead043240565d756858021d68d26cf418fde
+# Deployment: INSTALLED at /home/node/.n8n/nodes/node_modules/@telepilotco/tdlib-binaries-prebuilt/prebuilds/libtdjson.so
+# Tested: dlopen OK in musl Alpine n8n 2.13.4 container; nodes load successfully (telePilot, telePilotTrigger)
+
+# --- Common info ---
 # URL attempted: https://telepilot.co/tdlib-binaries-prebuilt/v1.8.14/linux-x64-glibc.tar.gz
 # GitHub releases: EMPTY (no releases published)
 # npm tarball (@telepilotco/tdlib-binaries-prebuilt@1.8.14): 2 files only (README.md + package.json, 3KB — no binary)
 # Conclusion: Vendor binary distribution is broken/removed for this version.
-#             Hash comparison NOT POSSIBLE — no original binary to compare against.
-MATCH: NOT_APPLICABLE
+#             Hash comparison NOT POSSIBLE for either variant.
 
-# Build details (from rebuilt info.txt):
+# Build 1 (glibc) details:
 # TDLib commit: 66234ae2537a99ec0eaf7b0857245a6e5c2d2bc9
 # cmake: 3.16.3 (Ubuntu 20.04)
 # gcc:   9.4.0 (Ubuntu 9.4.0-1ubuntu1~20.04.2)
-# glibc: 2.31
-# OpenSSL: 1.1.1f
-# zlib: 1.2.11
+# glibc: 2.31 / OpenSSL: 1.1.1f / zlib: 1.2.11
 # SHA256: 0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a
+
+# Build 2 (musl) details: see Build 2 section above.

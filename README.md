@@ -1,152 +1,143 @@
-# n8n-nodes-telepilot
+# n8n-nodes-telepilot (Security-Hardened Fork)
 
-[![npm version](https://badge.fury.io/js/@telepilotco%2Fn8n-nodes-telepilot.svg)](https://www.npmjs.com/package/@telepilotco/n8n-nodes-telepilot)
+> Fork of [@telepilotco/n8n-nodes-telepilot](https://github.com/telepilotco/n8n-nodes-telepilot)
+> with security audit, binary verification, and credential exfiltration fix applied.
 
-## Beta testing
+## What was changed from upstream
 
-Current build does not have all Telegram actions implemented and does not work on all n8n installations.
+### Fix 1 — Removed credential exfiltration call (CRITICAL)
 
-Here is environment compatibility overview:
+- **File:** `credentials/TelePilotApi.credentials.ts`
+- The original package sent a POST request to `http://ls.telepilot.co:4413` (vendor-controlled
+  license server, plain HTTP) every time credentials were tested in the n8n UI.
+- Removed entirely. Credentials are now validated at first use against Telegram MTProto servers
+  directly.
 
-|     OS | architecture | supported? |
-|--------|--------------|------|
-| docker | x64 | YES  |
-| docker | arm64 | YES   |
-| linux | x64 | YES     |
-| linux | arm64 | YES   |
-| macos | x64 | YES     |
-| macos | arm64 | YES  |
-| windows | x64 | NO  |
-| windows | arm64 | NO  |
+### Fix 2 — Binary rebuilt from source
 
-If you are interested in following our updates and news, check out:
+- The original distributed binary (`libtdjson.so`) was unavailable from all vendor sources
+  (URL 404, GitHub Releases empty, npm tarball ships no binary — only README + package.json).
+- Binary was rebuilt from official `tdlib/td` source (commit `66234ae2537a99ec0eaf7b0857245a6e5c2d2bc9`)
+  using Docker.
+- Two builds were performed:
+  - **glibc** (Ubuntu 20.04): SHA256 `0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a` — incompatible with Alpine-based n8n (fcntl64 symbol not found)
+  - **musl** (Alpine 3.16): SHA256 `9f9817d0909fbe6db6c056a5f3b5ead043240565d756858021d68d26cf418fde` — verified compatible, installed in production
+- Binary passes `dlopen` test and node type registration inside n8n 2.13.4 on Alpine Linux v3.22.
 
-- our telegram channel https://t.me/telepilotco OR
-- our website https://telepilot.co
+---
 
+## Security audit summary
 
-## Overview
+| Check | Result |
+|---|---|
+| Hidden outbound HTTP calls in source | ✅ Found and removed (`ls.telepilot.co:4413`) |
+| Compiled `dist/` scan | ✅ Clean — matches TypeScript source |
+| npm `postinstall` scripts | ✅ Standard native addon patterns only (`node-gyp-build`, `node-pre-gyp`) |
+| Prebuilt binary origin | ⚠️ Vendor URL 404 — rebuilt from official TDLib source |
+| Binary compatibility (musl / Alpine n8n) | ✅ Verified — nodes load, icon endpoint 200 |
+| `@telepilotco/tdl` `.node` addon | ⚠️ Vendor-supplied; source available but not rebuilt in this audit |
 
-`@telepilotco/n8n-nodes-telepilot` is a node for the n8n automation engine that provides the ability to configure your personal Telegram assistant. 
-It works alongside your main client, allowing you to interact with Telegram servers and see all the messages you can see, 
-while also enabling your assistant to react to those messages.
+See [SECURITY.md](SECURITY.md) for the full audit report.
 
-With `@telepilotco/n8n-nodes-telepilot`, you can enhance your Telegram user experience by automating various actions and responses. 
-Your personal Telegram CoPilot acts as real-time assistant, providing additional functionalities and making your Telegram usage more efficient.
-
-At [TelePilot](https://telepilot.co), we prioritize your privacy. We do not have access to your Telegram messages because you have full control over your personal instance of TelePilot, 
-which runs on your self-hosted n8n instance. The choice of hosting environment is entirely up to you. 
-
-Whether you prefer the convenience of cloud hosting or the control of running it on your own machine, TelePilot allows you to make that decision. 
-
-Probably the fastest way to get everything up and running would be using Railway n8n template:
-
- - [Railway](https://railway.app/new/template/zo8wVU)
-
-If you are technically inclined, you can even launch it on your homelab or Raspberry Pi. 
-For a hassle-free experience, take one of these templates for self-hosting:
-
- - [n8n on Cloudron](https://www.cloudron.io/store/io.n8n.cloudronapp.html)
- - [YunoHost](https://yunohost.org/en/app_n8n) / [YunoHost n8n app on github](https://github.com/YunoHost-Apps/n8n_ynh)
- - https://timeweb.cloud/ ?
-
-## Features
-
-- Interact with other users
-- Respond to private messages: CoPilot can respond to private messages from other users, allowing for automated answers
-- Interact with channels and groups:
-	- Download messages
-	- Topic Notification: Stay updated on specific topics of interest by receiving notifications when they are being discussed in Telegram. 
-    Configure your [personal Telegram assistant](https://telepilot.co) to monitor and alert you whenever a particular topic is mentioned.
-	- Keyword Notification: Never miss important messages by setting up keyword notifications.
-    Define specific words or phrases that you are interested in, and your Telegram assistant will notify you whenever those keywords are posted in any message. 
-    Stay informed and engaged with the conversations that matter to you.
-	- Moderating groups
-  - Schedule message posting: you can schedule messages using your Telegram CoPilot
-- Get more API events: Telepilot can receive API events that normal bots don't know about, such as when a message gets deleted through the client.
-
+---
 
 ## Installation
 
-### Install as n8n community node
+### Requirements
 
-To use this package in your n8n project, follow these steps:
+- n8n self-hosted (Docker)
+- `N8N_COMMUNITY_PACKAGES_ENABLED=true` in your compose.yaml
+- Telegram `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org)
 
-1. Go to Settings -> Community modules of your self-hosted n8n instance
-2. Select "Install Community node"
-3. Specify the name `@telepilotco/n8n-nodes-telepilot`, click checkbox that you understand the risks and click "Install"
+### Install
 
-![Install Telepilot as n8n Community Node](https://telepilot.co/documentation-images/install-community-node-1.png)
+```bash
+# 1. Install the package (--ignore-scripts skips the broken vendor binary download)
+npm install github:nickovall/n8n-nodes-telepilot --ignore-scripts \
+  --prefix /home/node/.n8n/nodes
 
-### Manual installation
+# 2. Install missing peer dependency
+npm install reflect-metadata --ignore-scripts \
+  --prefix /home/node/.n8n/nodes
 
-To get started install the package in your `~/.n8n/nodes` directory:
-
-`npm install @telepilotco/n8n-nodes-telepilot`
-
-For Docker-based deployments, add the following line before the font installation command in your [n8n Dockerfile](https://github.com/n8n-io/n8n/blob/master/docker/images/n8n/Dockerfile):
-
-`RUN cd ~/.n8n/ && mkdir nodes && cd nodes && npm install @telepilotco/n8n-nodes-telepilot`
-
-## TelePilot setup
-
-### Connect TelePilot with your Telegram Account
-![Connect Telepilot with your Telegram Account](https://telepilot.co/documentation-images/telegram-api-1.png)
-
-- Log in to your Telegram core: https://my.telegram.org with your phone number that you wish to use TelePilot with
-- Go to [API development tools](https://my.telegram.org/apps) and fill out the form:
-  - App title: `telepilot`
-  - Short name: `telepilot`
-- Receive basic addresses as well as the `api_id` and `api_hash` parameters required for user authorization.
-
-### Create Credentials in your n8n instance
-
-Access the credentials UI by opening the left menu and selecting **Credentials**.
-
-![Configure TelePilot Credentials](https://telepilot.co/documentation-images/credentials-0.png)
-
-Click on "Add Credential" button and browse for "Personal Telegram CoPilot API".
-
-To initiate connection with Telegram servers, you need to provide following:
-- `api_id`: copy-paste it from https://my.telegram.org/apps page
-- `api_hash`: copy-paste it from https://my.telegram.org/apps page
-
-![Configure TelePilot Credentials](https://telepilot.co/documentation-images/credentials-1.png)
-
-After you have filled out all fields, click on "Save" and make sure that you see "Connection tested successfully" message.
-
-![Configure TelePilot Credentials](https://telepilot.co/documentation-images/credentials-2.png)
-
-## Login
-
-Once the credentials are set up, you need to log in.
-This is accomplished by authorizing Telepilot using your Telegram account via a QR code scan.
-
-For more detailed information, please refer to our login guide: https://telepilot.co/login-howto
-
-
-### Import workflows
-
-You can import predefined workflows that we have created for you, check out [this page](https://telepilot.co/workflows)
-
-
-## Troubleshooting
-
-You can enable DEBUG logs by running n8n with env variables, here is how you do it in cli:
-
-```shell
-DEBUG=tdl,tdl:client,telepilot-cred,telepilot-node,telepilot-trigger,telepilot-cm N8N_LOG_LEVEL=debug npx n8n
+# 3. Copy the musl binary (required for Alpine-based n8n)
+#    See "Rebuild binary yourself" section below for build instructions
+cp /path/to/libtdjson.so \
+  /home/node/.n8n/nodes/node_modules/@telepilotco/tdlib-binaries-prebuilt/prebuilds/libtdjson.so
 ```
 
-For dockerized setup, make sure you add these env variables to your docker container or docker compose
+For Docker-based n8n, mount the data volume and run npm inside the n8n image:
 
+```bash
+docker run --rm \
+  -v n8n_data:/home/node/.n8n \
+  --entrypoint npm \
+  docker.n8n.io/n8nio/n8n:2.13.4 \
+  install github:nickovall/n8n-nodes-telepilot --ignore-scripts \
+  --prefix /home/node/.n8n/nodes
+```
 
-## Usage
+### Rebuild binary yourself
 
-This package provides various nodes and actions that allow you to interact with Telegram servers and enhance the Telegram user experience. 
-Please refer to the n8n Documentation for detailed information on each node and its usage.
-May you have any questions, reach out to per email (contact@telepilot.co) or in our [Telegram Group](https://t.me/telepilotco_group)
+The musl build is required for all Docker n8n installations (Alpine Linux base):
+
+```bash
+git clone https://github.com/nickovall/tdlib-binaries-prebuilt
+cd tdlib-binaries-prebuilt
+
+# For Alpine/musl n8n (most Docker installs):
+docker run --rm \
+  -v $(pwd):/rep \
+  --platform linux/amd64 \
+  alpine:3.16 \
+  sh /rep/prebuilt-tdlib-docker.sh
+
+# Output: prebuilds/lib/libtdjson.so
+# Verified musl SHA256: 9f9817d0909fbe6db6c056a5f3b5ead043240565d756858021d68d26cf418fde
+```
+
+### After install — enable community packages
+
+In your n8n `compose.yaml`:
+
+```yaml
+environment:
+  - N8N_COMMUNITY_PACKAGES_ENABLED=true
+```
+
+Then restart only the n8n container:
+
+```bash
+docker compose up -d n8n
+```
+
+### Notes for reinstalls
+
+- After every `npm install` or n8n container update, repeat steps 1–3 above. The vendor binary
+  download URL returns HTTP 404 and will leave no binary.
+- The credential fix (removal of `ls.telepilot.co:4413` call) is in the TypeScript source.
+  Reinstalling from this fork preserves the fix automatically.
+
+---
+
+## Original package
+
+This is a fork of [telepilotco/n8n-nodes-telepilot](https://github.com/telepilotco/n8n-nodes-telepilot).
+Original functionality is unchanged. See the upstream README for usage instructions (credentials
+setup, login via QR code, available actions).
+
+Original features include:
+- Send and receive Telegram messages as a real user account (not a bot)
+- Listen for events: new messages, deletions, edits, reactions
+- Interact with channels, groups, private chats
+- Schedule message posting
+- Receive API events unavailable to bots (e.g. message deletion notifications)
+
+For usage documentation, credentials setup (api_id / api_hash), and login flow, refer to
+[upstream README](https://github.com/telepilotco/n8n-nodes-telepilot#readme).
+
+---
 
 ## License
 
-This project is licensed under the MIT license.
+MIT — same as upstream.
