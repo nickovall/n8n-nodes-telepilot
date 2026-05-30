@@ -1,0 +1,18 @@
+{
+    "node": "n8n-nodes-telepilot.TelePilot",
+    "nodeVersion": "1.0",
+    "codexVersion": "1.0",
+    "categories": ["Communication"],
+    "resources": {
+        "credentialDocumentation": [
+            {
+                "url": "https://telepilot.co/documentation/linking-telepilot-with-your-telegram-account/"
+            }
+        ],
+        "primaryDocumentation": [
+            {
+                "url": "https://telepilot.co/documentation/"
+            }
+        ]
+    }
+}

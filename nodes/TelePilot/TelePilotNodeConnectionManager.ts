@@ -1,19 +1,51 @@
 import 'reflect-metadata';
 import { Service } from 'typedi';
-import {IDataObject} from "n8n-workflow";
+import { IDataObject } from 'n8n-workflow';
+
 const { Client } = require('@telepilotco/tdl');
 const tdl = require('@telepilotco/tdl');
-// const childProcess = require('child_process');
-
-const debug = require('debug')('telepilot-cm')
-
 const fs = require('fs/promises');
+const path = require('path');
 
-var pjson = require('../../package.json');
-const nodeVersion = pjson.version;
+const debug = require('debug')('telepilot-cm');
 
-const binaryVersion = pjson.dependencies["@telepilotco/tdlib-binaries-prebuilt"].replace("^", "");
-const addonVersion = pjson.dependencies["@telepilotco/tdl"].replace("^", "");
+function loadPackageJson(): {
+	version: string;
+	dependencies: Record<string, string>;
+	telepilot?: { tdlibBinaryVersion?: string };
+} {
+	const candidates = [
+		path.resolve(__dirname, '../../../package.json'), // compiled dist path
+		path.resolve(__dirname, '../../package.json'), // source tree path
+	];
+
+	for (const packagePath of candidates) {
+		try {
+			return require(packagePath);
+		} catch (error) {
+			// Try the next candidate. n8n loads compiled files from dist, tests may load source.
+		}
+	}
+
+	return { version: 'unknown', dependencies: {} };
+}
+
+const packageJson = loadPackageJson();
+const nodeVersion = packageJson.version;
+
+const binaryVersion = packageJson.telepilot?.tdlibBinaryVersion ?? 'unknown';
+const addonVersion = (packageJson.dependencies['@telepilotco/tdl'] ?? 'unknown').replace(/^[~^]/, '');
+
+type AuthHandler = (update: IDataObject) => void;
+
+function getTdDataPathPrefix(): string {
+	if (process.env.TELEPILOT_TDLIB_DATA_DIR !== undefined && process.env.TELEPILOT_TDLIB_DATA_DIR !== '') {
+		return process.env.TELEPILOT_TDLIB_DATA_DIR;
+	}
+
+	const n8nUserFolder = process.env.N8N_USER_FOLDER ?? path.join(process.env.HOME ?? process.cwd(), '.n8n');
+	return path.join(n8nUserFolder, 'nodes', 'node_modules', '@telepilotco', 'n8n-nodes-telepilot', 'db');
+}
 
 export enum TelepilotAuthState {
 	NO_CONNECTION = "NO_CONNECTION",
@@ -43,16 +75,17 @@ class ClientSession {
 	client: typeof Client;
 	authState: TelepilotAuthState;
 	phoneNumber: string;
+	authHandler?: AuthHandler;
 
 	constructor(client: typeof Client, authState: TelepilotAuthState, phoneNumber: string) {
 		this.client = client;
 		this.authState = authState;
-		this.phoneNumber = phoneNumber
+		this.phoneNumber = phoneNumber;
 	}
 }
 
 export function sleep(ms: number) {
-	return new Promise( resolve => setTimeout(resolve, ms) );
+	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 @Service()
@@ -61,79 +94,104 @@ export class TelePilotNodeConnectionManager {
 	private clientSessions: Record<number, ClientSession> = {};
 	private tdlConfigured: boolean = false;
 
-	private TD_DATABASE_PATH_PREFIX = process.env.HOME + "/.n8n/nodes/node_modules/@telepilotco/n8n-nodes-telepilot/db"
-	private TD_FILES_PATH_PREFIX = process.env.HOME + "/.n8n/nodes/node_modules/@telepilotco/n8n-nodes-telepilot/db"
+	private TD_DATABASE_PATH_PREFIX = getTdDataPathPrefix();
+	private TD_FILES_PATH_PREFIX = this.TD_DATABASE_PATH_PREFIX;
 
 
 	constructor() {
 
 	}
 
-	async closeLocalSession(apiId: number) {
-		debug("closeLocalSession apiId:" + apiId)
-		let clients_keys = Object.keys(this.clientSessions);
-		if (!clients_keys.includes(apiId.toString()) || this.clientSessions[apiId] === undefined) {
-			throw new Error ("You need to login first, please check our guide at https://telepilot.co/login-howto")
+	private normalizeApiId(apiId: unknown): number {
+		const parsedApiId = typeof apiId === 'number' ? apiId : Number(apiId);
+		if (!Number.isInteger(parsedApiId) || parsedApiId <= 0) {
+			throw new Error('Telegram api_id must be a positive integer');
 		}
-		const clientSession = this.clientSessions[apiId];
-		// let result = await clientSession.client.invoke({
-		// 	_: 'close'
-		// })
-		clientSession.client.off
-		let result = clientSession.client.close();
-		delete this.clientSessions[apiId];
-		debug(Object.keys(this.clientSessions))
+		return parsedApiId;
+	}
+
+	private getClientSession(apiId: unknown): ClientSession {
+		const normalizedApiId = this.normalizeApiId(apiId);
+		const clientSession = this.clientSessions[normalizedApiId];
+		if (clientSession === undefined) {
+			throw new Error('You need to login first, please check our guide at https://telepilot.co/login-howto');
+		}
+		return clientSession;
+	}
+
+	private detachAuthHandler(clientSession: ClientSession) {
+		if (clientSession.authHandler !== undefined) {
+			clientSession.client.removeListener('update', clientSession.authHandler);
+			clientSession.authHandler = undefined;
+		}
+	}
+
+	private maskPhoneNumber(phoneNumber: string) {
+		if (phoneNumber.length <= 4) {
+			return '[REDACTED]';
+		}
+		return `${'*'.repeat(phoneNumber.length - 4)}${phoneNumber.slice(-4)}`;
+	}
+
+	async closeLocalSession(apiId: unknown) {
+		const normalizedApiId = this.normalizeApiId(apiId);
+		debug('closeLocalSession apiId:' + normalizedApiId);
+		const clientSession = this.getClientSession(normalizedApiId);
+		this.detachAuthHandler(clientSession);
+		const result = clientSession.client.close();
+		delete this.clientSessions[normalizedApiId];
+		debug(Object.keys(this.clientSessions));
 		return result;
 	}
-	async deleteLocalInstance(apiId: number): Promise<Record<string, string>> {
-		let clients_keys = Object.keys(this.clientSessions);
-		if (!clients_keys.includes(apiId.toString()) || this.clientSessions[apiId] === undefined) {
-			throw new Error ("You need to login first, please check our guide at https://telepilot.co/login-howto")
-		}
-		const clientSession = this.clientSessions[apiId];
+	async deleteLocalInstance(apiId: unknown): Promise<Record<string, string>> {
+		const normalizedApiId = this.normalizeApiId(apiId);
+		const clientSession = this.clientSessions[normalizedApiId];
 
-		try {
-			await clientSession.client.invoke({
-				_: 'close'
-			})
-		} catch (e) {
-			debug("Connection was already closed")
+		if (clientSession !== undefined) {
+			this.detachAuthHandler(clientSession);
+			try {
+				await clientSession.client.invoke({
+					_: 'close',
+				});
+			} catch (e) {
+				debug('Connection was already closed');
+			}
+			delete this.clientSessions[normalizedApiId];
 		}
 
-		let result: Record<string, string> = {}
+		const result: Record<string, string> = {};
 		const removeDir = async (dirPath: string) => {
-			await fs.rm(dirPath, {recursive: true});
-		}
+			await fs.rm(dirPath, { recursive: true, force: true });
+		};
 
-		const db_database_path = this.getTdDatabasePathForClient(apiId);
-		await removeDir(db_database_path)
-		result["db_database"] = `Removed ${db_database_path}`
+		const db_database_path = this.getTdDatabasePathForClient(normalizedApiId);
+		await removeDir(db_database_path);
+		result.db_database = `Removed ${db_database_path}`;
 
-		const db_files_path = this.getTdFilesPathForClient(apiId);
-		await removeDir(db_files_path)
-		result["db_files"] = `Removed ${db_files_path}`
+		const db_files_path = this.getTdFilesPathForClient(normalizedApiId);
+		await removeDir(db_files_path);
+		result.db_files = `Removed ${db_files_path}`;
 
-		delete this.clientSessions[apiId];
 		return result;
 	}
 
-	getTdDatabasePathForClient(apiId: number) {
-		return `${this.TD_DATABASE_PATH_PREFIX}/${apiId}/_td_database`
+	getTdDatabasePathForClient(apiId: unknown) {
+		return path.join(this.TD_DATABASE_PATH_PREFIX, String(this.normalizeApiId(apiId)), '_td_database');
 	}
 
-	getTdFilesPathForClient(apiId: number) {
-		return `${this.TD_FILES_PATH_PREFIX}/${apiId}/_td_files`
+	getTdFilesPathForClient(apiId: unknown) {
+		return path.join(this.TD_FILES_PATH_PREFIX, String(this.normalizeApiId(apiId)), '_td_files');
 	}
 
-	async clientLoginWithPhoneNumber(apiId: number, apiHash: string, phone_number: string): Promise<string> {
-		debug("clientLoginWithPhoneNumber")
-		let clientSession = this.clientSessions[apiId];
+	async clientLoginWithPhoneNumber(apiId: unknown, apiHash: string, phone_number: string): Promise<string> {
+		debug('clientLoginWithPhoneNumber');
+		const clientSession = this.getClientSession(apiId);
 
-		debug("clientLoginWithPhoneNumber.authState:" + clientSession.authState)
+		debug('clientLoginWithPhoneNumber.authState:' + clientSession.authState);
 		if (clientSession.authState == TelepilotAuthState.WAIT_PHONE_NUMBER) {
-			let result = await clientSession.client.invoke({
+			const result = await clientSession.client.invoke({
 				_: 'setAuthenticationPhoneNumber',
-				phone_number
+				phone_number,
 			});
 			return result;
 		}
@@ -152,62 +210,66 @@ export class TelePilotNodeConnectionManager {
 
 	}
 
-	async clientLoginSendAuthenticationCode(apiId: number, code: string): Promise<string> {
-		debug("clientLoginSendAuthenticationCode")
-		let clientSession = this.clientSessions[apiId];
-		let result = await clientSession.client.invoke({
+	async clientLoginSendAuthenticationCode(apiId: unknown, code: string): Promise<string> {
+		debug('clientLoginSendAuthenticationCode');
+		const clientSession = this.getClientSession(apiId);
+		const result = await clientSession.client.invoke({
 			_: 'checkAuthenticationCode',
-			code
+			code,
 		});
 		return result;
 	}
 
-	async clientLoginSendAuthenticationPassword(apiId: number, password: string): Promise<string> {
-		debug("clientLoginSendAuthenticationPassword")
-		let clientSession = this.clientSessions[apiId];
-		let result = await clientSession.client.invoke({
+	async clientLoginSendAuthenticationPassword(apiId: unknown, password: string): Promise<string> {
+		debug('clientLoginSendAuthenticationPassword');
+		const clientSession = this.getClientSession(apiId);
+		const result = await clientSession.client.invoke({
 			_: 'checkAuthenticationPassword',
-			password
+			password,
 		});
 		return result;
 	}
 
-	async createClientSetAuthHandlerForPhoneNumberLogin(apiId: number, apiHash: string, phoneNumber: string): Promise<ClientSession> {
+	async createClientSetAuthHandlerForPhoneNumberLogin(apiId: unknown, apiHash: string, phoneNumber: string): Promise<ClientSession> {
+		const normalizedApiId = this.normalizeApiId(apiId);
 		let client: typeof Client;
-		if (this.clientSessions[apiId] === undefined) {
-			client = this.initClient(apiId, apiHash);
-			let clientSession = new ClientSession(client, TelepilotAuthState.NO_CONNECTION, phoneNumber);
-			this.clientSessions[apiId] = clientSession;
+		if (this.clientSessions[normalizedApiId] === undefined) {
+			client = this.initClient(normalizedApiId, apiHash);
+			const clientSession = new ClientSession(client, TelepilotAuthState.NO_CONNECTION, phoneNumber);
+			this.clientSessions[normalizedApiId] = clientSession;
 		}
-		const authHandler = (update: IDataObject) => {
-			if (update._ === "updateAuthorizationState") {
-				debug('authHandler.Got updateAuthorizationState:', JSON.stringify(update, null, 2))
-				const authorization_state = update.authorization_state as IDataObject;
-				if (this.clientSessions[apiId] !== undefined) {
-					this.clientSessions[apiId].authState = getEnumFromString(TelepilotAuthState, authorization_state._ as string);
-					debug("set clientSession.authState to " + this.clientSessions[apiId].authState)
+		if (this.clientSessions[normalizedApiId].authHandler === undefined) {
+			const authHandler = (update: IDataObject) => {
+				if (update._ !== 'updateAuthorizationState') {
+					return;
 				}
-			}
-		}
+				const authorization_state = update.authorization_state as IDataObject;
+				debug('authHandler.Got updateAuthorizationState:', authorization_state._);
+				if (this.clientSessions[normalizedApiId] !== undefined) {
+					this.clientSessions[normalizedApiId].authState = getEnumFromString(TelepilotAuthState, authorization_state._ as string);
+					debug('set clientSession.authState to ' + this.clientSessions[normalizedApiId].authState);
+				}
+			};
 
-		this.clientSessions[apiId].client
-			.on('update', authHandler)
+			this.clientSessions[normalizedApiId].authHandler = authHandler;
+			this.clientSessions[normalizedApiId].client.on('update', authHandler);
+		}
 
 		await sleep(1000);
-		return this.clientSessions[apiId];
+		return this.clientSessions[normalizedApiId];
 	}
 
 	private initClient(apiId: number, apiHash: string) {
-		let clients_keys = Object.keys(this.clientSessions);
-		let {libFolder, libFile} = this.locateBinaryModules();
-		debug("nodeVersion:", nodeVersion);
-		debug("binaryVersion:", binaryVersion);
-		debug("addonVersion:", addonVersion);
+		const clients_keys = Object.keys(this.clientSessions);
+		const { libFolder, libFile } = this.locateBinaryModules();
+		debug('nodeVersion:', nodeVersion);
+		debug('binaryVersion:', binaryVersion);
+		debug('addonVersion:', addonVersion);
 		if (!clients_keys.includes(apiId.toString()) || this.clientSessions[apiId] === undefined) {
 			if (!this.tdlConfigured) {
 				tdl.configure({
 					libdir: libFolder,
-					tdjson: libFile
+					tdjson: libFile,
 				});
 				this.tdlConfigured = true;
 			}
@@ -218,7 +280,7 @@ export class TelePilotNodeConnectionManager {
 				filesDirectory: this.getTdFilesPathForClient(apiId),
 				nodeVersion,
 				binaryVersion,
-				addonVersion
+				addonVersion,
 				// useTestDc: true
 			});
 		} else {
@@ -226,9 +288,8 @@ export class TelePilotNodeConnectionManager {
 		}
 	}
 
-// @ts-ignore
 	private locateBinaryModules() {
-		let _lib_prebuilt_package = "tdlib-binaries-prebuilt/prebuilds/";
+		const _lib_prebuilt_package = 'tdlib-binaries-prebuilt/prebuilds/';
 
 		let libFile = "";
 		const libFolder = __dirname + "/../../../../" + _lib_prebuilt_package;
@@ -237,15 +298,13 @@ export class TelePilotNodeConnectionManager {
 			switch (process.platform) {
 				case "win32":
 					throw new Error("Your n8n installation is currently not supported, " +
-						"please refer to https://telepilot.co/nodes/telepilot/#win-x64")
-					break;
+						"please refer to https://telepilot.co/nodes/telepilot/#win-x64");
 				case 'darwin':
 					throw new Error("Your n8n installation is currently not supported, " +
-						"please refer to https://telepilot.co/nodes/telepilot/#macos-x64")
-					break;
+						"please refer to https://telepilot.co/nodes/telepilot/#macos-x64");
 				case 'linux':
 						// libFile = libFolder + "libtdjson" + ".so"
-						libFile = "libtdjson" + ".so"
+						libFile = "libtdjson" + ".so";
 					break;
 				default:
 					throw new Error("Not implemented for " + process.platform);
@@ -254,30 +313,36 @@ export class TelePilotNodeConnectionManager {
 			switch (process.platform) {
 				case "darwin":
 					// 	"please refer to https://telepilot.co/nodes/telepilot/#macos-arm64")
-					libFile = "libtdjson" + ".dylib"
+					libFile = "libtdjson" + ".dylib";
 					break;
 				case "linux":
-					libFile = "libtdjson" + ".so"
+					libFile = "libtdjson" + ".so";
 					break;
 				default:
 					throw new Error("Your n8n installation is currently not supported, " +
-						"please refer to https://telepilot.co/nodes/telepilot/#win-arm64")
+						"please refer to https://telepilot.co/nodes/telepilot/#win-arm64");
 			}
 		}
 		// return {libFile, bridgeFile};
 		return {libFolder, libFile};
 	}
 
-	markClientAsClosed(apiId: number) {
-		debug("markClientAsClosed apiId:" + apiId)
-		this.closeLocalSession(apiId);
+	markClientAsClosed(apiId: unknown) {
+		const normalizedApiId = this.normalizeApiId(apiId);
+		debug('markClientAsClosed apiId:' + normalizedApiId);
+		const clientSession = this.clientSessions[normalizedApiId];
+		if (clientSession !== undefined) {
+			this.detachAuthHandler(clientSession);
+			delete this.clientSessions[normalizedApiId];
+		}
 	}
 
-	getAuthStateForCredential(apiId: number) {
-		if (this.clientSessions[apiId] === undefined) {
+	getAuthStateForCredential(apiId: unknown) {
+		const normalizedApiId = this.normalizeApiId(apiId);
+		if (this.clientSessions[normalizedApiId] === undefined) {
 			return TelepilotAuthState.NO_CONNECTION;
 		} else {
-			const clientSession = this.clientSessions[apiId];
+			const clientSession = this.clientSessions[normalizedApiId];
 			return clientSession.authState;
 		}
 	}
@@ -288,7 +353,7 @@ export class TelePilotNodeConnectionManager {
 			return {
 				apiId: key,
 				authState: value.authState,
-				phoneNumber: value.phoneNumber
+				phoneNumber: this.maskPhoneNumber(value.phoneNumber),
 			};
 		});
 	}

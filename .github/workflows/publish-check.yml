@@ -1,4 +1,4 @@
-name: Verify Publish
+name: Verify package
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
       - master
 
 jobs:
-  dry-run-publish:
+  package-check:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,13 +16,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # or whatever Node.js version you need
-
-      - name: Install pnpm
-        run: npm install -g pnpm
+          node-version: '20'
+          cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
-      - name: Publish dry-run
-        run: npm publish --dry-run --no-git-checks
+      - name: Lint
+        run: npm run lint
+
+      - name: Package dry-run
+        run: npm pack --dry-run

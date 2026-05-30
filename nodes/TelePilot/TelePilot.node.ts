@@ -166,6 +166,7 @@ export class TelePilot implements INodeType {
 
 		const credentials = await this.getCredentials('telePilotApi');
 		const cM = Container.get(TelePilotNodeConnectionManager);
+		const apiId = credentials?.apiId;
 		// debug(cM)
 		// debug(client)
 
@@ -200,15 +201,15 @@ export class TelePilot implements INodeType {
 				} else if (message.startsWith("/")) {
 					switch(message) {
 						case "/start":
-							let authState = cM.getAuthStateForCredential(credentials?.apiId as number)
+							let authState = cM.getAuthStateForCredential(apiId)
 							debug("loginWithPhoneNumber./start.authState: " + authState)
 							if (authState == TelepilotAuthState.NO_CONNECTION) {
 								await cM.createClientSetAuthHandlerForPhoneNumberLogin(
-									credentials?.apiId as number,
+									apiId,
 									credentials?.apiHash as string,
 									credentials?.phoneNumber as string,
 								)
-								authState = cM.getAuthStateForCredential(credentials?.apiId as number)
+								authState = cM.getAuthStateForCredential(apiId)
 								debug("loginWithPhoneNumber./start2.authState: " + authState)
 
 								if (authState == TelepilotAuthState.WAIT_CODE) {
@@ -220,12 +221,12 @@ export class TelePilot implements INodeType {
 							switch (authState) {
 								case TelepilotAuthState.WAIT_PHONE_NUMBER:
 									await cM.clientLoginWithPhoneNumber(
-										credentials?.apiId as number,
+										apiId,
 										credentials?.apiHash as string,
 										credentials?.phoneNumber as string
 									)
 									await sleep(1000);
-									authState = cM.getAuthStateForCredential(credentials?.apiId as number)
+									authState = cM.getAuthStateForCredential(apiId)
 									if (authState == TelepilotAuthState.WAIT_CODE) {
 										returnData.push("Please provide AuthCode:");
 									} else if (authState == TelepilotAuthState.WAIT_READY) {
@@ -244,20 +245,22 @@ export class TelePilot implements INodeType {
 							}
 							break;
 						case "/stop":
-							cM.closeLocalSession(credentials?.apiId as number)
+							await cM.closeLocalSession(apiId)
 							returnData.push("Telegram Account " + credentials?.phoneNumber + " disconnected.");
 							break;
 						case "/clear":
-							cM.deleteLocalInstance(credentials?.apiId as number)
+							await cM.deleteLocalInstance(apiId)
 							returnData.push({
 								text: "Telegram Account disconnected, local session has been cleared. Please login again. " +
 											"Please check our guide at https://telepilot.co/login-howto"
 							});
 							break;
 						case "/cred":
-							let credResult = credentials;
-							credResult.apiHash = "[DELETED]"
-							returnData.push(credResult)
+							returnData.push({
+								apiId,
+								apiHash: "[REDACTED]",
+								phoneNumber: credentials?.phoneNumber,
+							})
 							break;
 						case "/help":
 							returnData.push(loginWithPhoneNumberHelpCommand());
@@ -270,7 +273,7 @@ export class TelePilot implements INodeType {
 							break;
 					}
 				} else {
-					let authState = cM.getAuthStateForCredential(credentials?.apiId as number)
+					let authState = cM.getAuthStateForCredential(apiId)
 					debug("loginWithPhoneNumber.authState: " + authState)
 					switch (authState) {
 						case TelepilotAuthState.NO_CONNECTION:
@@ -281,11 +284,11 @@ export class TelePilot implements INodeType {
 						case TelepilotAuthState.WAIT_CODE:
 							const code = message;
 							await cM.clientLoginSendAuthenticationCode(
-								credentials?.apiId as number,
+								apiId,
 								code
 							)
 							await sleep(1000);
-							authState = cM.getAuthStateForCredential(credentials?.apiId as number)
+							authState = cM.getAuthStateForCredential(apiId)
 							if (authState == TelepilotAuthState.WAIT_PASSWORD) {
 								returnData.push("MFA Password:");
 							} else if (authState == TelepilotAuthState.WAIT_READY) {
@@ -297,11 +300,11 @@ export class TelePilot implements INodeType {
 						case TelepilotAuthState.WAIT_PASSWORD:
 							const password = message;
 							await cM.clientLoginSendAuthenticationPassword(
-								credentials?.apiId as number,
+								apiId,
 								password
 							)
 							await sleep(1000);
-							returnData.push("authState:" + cM.getAuthStateForCredential(credentials?.apiId as number));
+							returnData.push("authState:" + cM.getAuthStateForCredential(apiId));
 							break;
 						case TelepilotAuthState.WAIT_READY:
 							returnData.push("You are logged in with phoneNumber " + credentials?.phoneNumber);
@@ -314,13 +317,13 @@ export class TelePilot implements INodeType {
 				}
 			} else if (operation === 'closeSession') {
 				try {
-					cM.closeLocalSession(credentials?.apiId as number)
+					await cM.closeLocalSession(apiId)
 				} catch (e) {
 					throw e;
 				}
 				returnData.push("Telegram Account " + credentials?.phoneNumber + " disconnected.");
 			} else if (operation === 'removeTdDatabase') {
-				result = await cM.deleteLocalInstance(credentials?.apiId as number);
+				result = await cM.deleteLocalInstance(apiId);
 				returnData.push({
 					text: "Telegram Account disconnected, local session has been cleared.\nPlease login again. Please check our guide at https://telepilot.co/login-howto\n" +
 						"Or use /help"
@@ -328,13 +331,13 @@ export class TelePilot implements INodeType {
 			}
 		} else {
 			const clientSession = await cM.createClientSetAuthHandlerForPhoneNumberLogin(
-				credentials?.apiId as number,
+				apiId,
 				credentials?.apiHash as string,
 				credentials?.phoneNumber as string,
 			);
 			debug("clientSession.authState=" + clientSession.authState)
 			if (clientSession.authState != TelepilotAuthState.WAIT_READY) {
-				await cM.closeLocalSession(credentials?.apiId as number)
+				await cM.closeLocalSession(apiId)
 				if (this.continueOnFail())
 				{
 					returnData.push({ json: {
@@ -1017,7 +1020,7 @@ export class TelePilot implements INodeType {
 			}
 		} catch (e) {
 			if (e.message === "A closed client cannot be reused, create a new Client") {
-				cM.markClientAsClosed(credentials?.apiId as number);
+				cM.markClientAsClosed(apiId);
 				if (this.continueOnFail())
 				{
 					returnData.push({ json: { message: e.message, error: e } });
@@ -1025,7 +1028,7 @@ export class TelePilot implements INodeType {
 					throw new Error("Session was closed or terminated. Please login again: https://telepilot.co/login-howto") as NodeOperationError
 				}
 			} else 	if (e.message === "Unauthorized") {
-				cM.markClientAsClosed(credentials?.apiId as number);
+				cM.markClientAsClosed(apiId);
 				if (this.continueOnFail())
 				{
 					returnData.push({ json: { message: e.message, error: e } });
