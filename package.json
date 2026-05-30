@@ -1,13 +1,14 @@
 {
   "name": "@telepilotco/n8n-nodes-telepilot",
   "version": "0.5.3",
-  "description": "Security-hardened n8n community nodes for Telegram user-account automation via TDLib",
+  "description": "Open-source, security-hardened n8n community nodes for Telegram user-account automation via TDLib",
   "keywords": [
     "telepilot.co",
     "telepilot",
     "telegram",
     "telegram-api",
     "MTProto",
+    "open-source",
     "node-addon",
     "n8n-community-node-package"
   ],

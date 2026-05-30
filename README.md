@@ -1,6 +1,6 @@
 # n8n-nodes-telepilot
 
-Security-hardened fork of [`@telepilotco/n8n-nodes-telepilot`](https://github.com/telepilotco/n8n-nodes-telepilot).
+Open-source, security-hardened fork of [`@telepilotco/n8n-nodes-telepilot`](https://github.com/telepilotco/n8n-nodes-telepilot).
 
 This package provides n8n community nodes for Telegram user-account automation through TDLib:
 
@@ -104,4 +104,4 @@ See [SECURITY.md](SECURITY.md) for the audit notes.
 
 ## License
 
-MIT, same as upstream.
+Open source under the MIT license, same as upstream.
