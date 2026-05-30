@@ -1,8 +1,7 @@
 # n8n-nodes-telepilot
 
 Independent open-source n8n community node package for Telegram user-account automation through TDLib.
-It started from the MIT-licensed [`@telepilotco/n8n-nodes-telepilot`](https://github.com/telepilotco/n8n-nodes-telepilot)
-codebase and has been substantially reworked for safer packaging, cleaner installation, and supply-chain transparency.
+Built for safer packaging, cleaner installation, and supply-chain transparency.
 
 This package provides n8n community nodes for Telegram user-account automation through TDLib:
 
@@ -107,4 +106,4 @@ See [SECURITY.md](SECURITY.md) for the audit notes.
 ## License
 
 Open source under the MIT license. Portions were originally based on the MIT-licensed
-`@telepilotco/n8n-nodes-telepilot` codebase.
+[`@telepilotco/n8n-nodes-telepilot`](https://github.com/telepilotco/n8n-nodes-telepilot) codebase.
