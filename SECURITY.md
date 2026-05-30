@@ -1,6 +1,7 @@
 # Security Notes
 
-Audit scope: `@telepilotco/n8n-nodes-telepilot` upstream version `0.5.2`, forked in May 2026.
+Audit scope: this repository's May 2026 rework, originally based on
+`@telepilotco/n8n-nodes-telepilot` version `0.5.2`.
 
 ## Fixed
 
@@ -13,7 +14,7 @@ http://ls.telepilot.co:4413/?key=empty
 ```
 
 That endpoint was not Telegram, used plain HTTP, and was triggered from the n8n credential test UI.
-This fork removes the credential `test` block entirely. Credentials are validated only when TDLib is
+This package removes the credential `test` block entirely. Credentials are validated only when TDLib is
 used against Telegram.
 
 ### Safer runtime handling
@@ -28,11 +29,11 @@ used against Telegram.
 
 ### Removed `@telepilotco/tdlib-binaries-prebuilt`
 
-The upstream binary package does not include `libtdjson.so` in the npm tarball. Its install script
+The original binary package does not include `libtdjson.so` in the npm tarball. Its install script
 uses `node-pre-gyp` to download from `https://telepilot.co/`, but the expected release URLs returned
-404 during the audit. This fork removes that package from runtime dependencies.
+404 during the audit. This package removes that dependency from runtime dependencies.
 
-Mitigation used by this fork:
+Mitigation used by this package:
 
 - install with `--ignore-scripts`
 - rebuild `libtdjson.so` from official `tdlib/td` source
@@ -49,7 +50,7 @@ SHA256: 9f9817d0909fbe6db6c056a5f3b5ead043240565d756858021d68d26cf418fde
 ### `@telepilotco/tdl`
 
 `@telepilotco/tdl@7.4.1` ships prebuilt native `.node` addons in its npm tarball and uses
-`node-gyp-build` as its install hook. This fork does not rebuild that addon. If you need maximum
+`node-gyp-build` as its install hook. This package does not rebuild that addon. If you need maximum
 supply-chain assurance, rebuild `@telepilotco/tdl` from source for your target platform.
 
 ## Operational Guidance

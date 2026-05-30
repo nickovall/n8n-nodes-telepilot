@@ -14,12 +14,12 @@
 - Hardened `api_id` handling before TDLib sessions and filesystem paths are used.
 - Fixed trigger listener cleanup and reduced sensitive debug logging.
 
-## 0.5.2-fork - 2026-05
+## 0.5.2 security baseline - 2026-05
 
-- Removed the upstream credential test request to `http://ls.telepilot.co:4413`.
-- Documented the broken upstream TDLib binary distribution.
+- Removed the original credential test request to `http://ls.telepilot.co:4413`.
+- Documented the broken original TDLib binary distribution.
 - Documented the verified Alpine/musl `libtdjson.so` rebuild hash.
 
 ## Upstream
 
-Original project: https://github.com/telepilotco/n8n-nodes-telepilot
+Originally based on the MIT-licensed project: https://github.com/telepilotco/n8n-nodes-telepilot

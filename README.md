@@ -1,6 +1,8 @@
 # n8n-nodes-telepilot
 
-Open-source, security-hardened fork of [`@telepilotco/n8n-nodes-telepilot`](https://github.com/telepilotco/n8n-nodes-telepilot).
+Independent open-source n8n community node package for Telegram user-account automation through TDLib.
+It started from the MIT-licensed [`@telepilotco/n8n-nodes-telepilot`](https://github.com/telepilotco/n8n-nodes-telepilot)
+codebase and has been substantially reworked for safer packaging, cleaner installation, and supply-chain transparency.
 
 This package provides n8n community nodes for Telegram user-account automation through TDLib:
 
@@ -8,17 +10,17 @@ This package provides n8n community nodes for Telegram user-account automation t
 - listen for message, edit, delete, and reaction events
 - work with private chats, groups, channels, contacts, files, and custom TDLib requests
 
-## What changed from upstream
+## What changed from the original baseline
 
 - Removed the credential test request to `http://ls.telepilot.co:4413`.
 - Kept credential validation at first Telegram/TDLib use instead of calling a vendor server.
-- Documented the broken upstream TDLib binary distribution and the verified local rebuild hash.
+- Documented the broken original TDLib binary distribution and the verified local rebuild hash.
 - Fixed package metadata and build/pack scripts so the repository can be installed from GitHub.
 
 ## Install from GitHub
 
-The upstream TDLib binary package tried to download from a vendor URL that currently returns 404.
-This fork does not depend on that broken package. Install with scripts disabled, then copy a verified
+The original TDLib binary package tried to download from a vendor URL that currently returns 404.
+This package does not depend on that broken package. Install with scripts disabled, then copy a verified
 `libtdjson.so` into the path where the node expects TDLib.
 
 ```bash
@@ -96,7 +98,7 @@ without running a build step.
 ## Security notes
 
 - `@telepilotco/tdl` still ships a vendor-provided native `.node` addon.
-- `@telepilotco/tdlib-binaries-prebuilt` is not installed by this fork; supply `libtdjson.so`
+- `@telepilotco/tdlib-binaries-prebuilt` is not installed by this package; supply `libtdjson.so`
   manually.
 - Keep `DEBUG=telepilot-*` disabled in production unless you are actively troubleshooting.
 
@@ -104,4 +106,5 @@ See [SECURITY.md](SECURITY.md) for the audit notes.
 
 ## License
 
-Open source under the MIT license, same as upstream.
+Open source under the MIT license. Portions were originally based on the MIT-licensed
+`@telepilotco/n8n-nodes-telepilot` codebase.
