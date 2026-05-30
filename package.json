@@ -1,13 +1,14 @@
 {
   "name": "@telepilotco/n8n-nodes-telepilot",
-  "version": "0.5.2",
-  "description": "Your personal Telegram CoPilot",
+  "version": "0.5.3",
+  "description": "Open-source, security-hardened n8n community nodes for Telegram user-account automation via TDLib",
   "keywords": [
     "telepilot.co",
     "telepilot",
     "telegram",
     "telegram-api",
     "MTProto",
+    "open-source",
     "node-addon",
     "n8n-community-node-package"
   ],
@@ -16,24 +17,29 @@
     "deploy/test-n8n-imports"
   ],
   "license": "MIT",
-  "homepage": "https://telepilot.co/",
+  "homepage": "https://github.com/nickovall/n8n-nodes-telepilot#readme",
   "author": {
-    "name": "TelePilot",
-    "email": "contact@telepilot.co"
+    "name": "Nikolai Kovalsky"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/telepilotco/n8n-nodes-telepilot.git"
+    "url": "git+https://github.com/nickovall/n8n-nodes-telepilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nickovall/n8n-nodes-telepilot/issues"
   },
   "main": "index.js",
   "scripts": {
-    "build": "pnpm exec tsc && pnpm exec gulp build:icons",
+    "clean": "node -e \"const fs=require('fs'); for (const p of ['dist','.tmp']) fs.rmSync(p,{recursive:true,force:true});\"",
+    "build": "tsc && gulp build:icons",
     "dev": "tsc --watch",
-    "format": "prettier nodes credentials --write",
-    "lint": "eslint nodes credentials",
+    "format": "prettier package.json nodes credentials --write",
+    "lint": "eslint package.json nodes credentials",
+    "lint:prepublish": "eslint -c .eslintrc.prepublish.js package.json nodes credentials",
     "lintfix": "eslint nodes credentials package.json --fix",
-    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.js nodes credentials",
-    "start-n8n": "cd ~/projects/2025-telepilot/n8n && DEBUG=tdl,tdl:client,telepilot-cred,telepilot-node,telepilot-trigger,telepilot-cm N8N_LOG_LEVEL=debug npm run dev"
+    "pack:check": "npm pack --dry-run",
+    "prepack": "npm run clean && npm run build",
+    "prepublishOnly": "npm run lint:prepublish"
   },
   "n8n": {
     "n8nNodesApiVersion": 1,
@@ -44,6 +50,9 @@
       "dist/nodes/TelePilot/TelePilot.node.js",
       "dist/nodes/TelePilot/TelePilotTrigger.node.js"
     ]
+  },
+  "telepilot": {
+    "tdlibBinaryVersion": "1.8.14-rebuilt"
   },
   "devDependencies": {
     "@types/express": "^4.17.6",
@@ -59,8 +68,8 @@
   },
   "dependencies": {
     "@telepilotco/tdl": "^7.4.1",
-    "@telepilotco/tdlib-binaries-prebuilt": "^1.8.14",
     "debug": "^4.3.4",
+    "reflect-metadata": "^0.2.2",
     "typedi": "^0.10.0"
   }
 }

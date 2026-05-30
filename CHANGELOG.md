@@ -1,39 +1,25 @@
 # Changelog
 
-## [fork-1.0.0] — 2026-05
+## 0.5.3 - 2026-05-30
 
-### Security
+- Fixed repository packaging for GitHub installs with `--ignore-scripts`.
+- Replaced pnpm-only build scripts with npm-compatible scripts.
+- Added `prepack` so `npm pack` always builds `dist/`.
+- Added `reflect-metadata` as a runtime dependency.
+- Removed the broken `@telepilotco/tdlib-binaries-prebuilt` runtime dependency.
+- Committed `dist/` intentionally so n8n can load the nodes from a GitHub install without scripts.
+- Updated package metadata to point to `nickovall/n8n-nodes-telepilot`.
+- Removed old deploy scaffolding, private-registry snippets, generated logs, and one-off audit reports.
+- Removed stale branch references from the repository.
+- Hardened `api_id` handling before TDLib sessions and filesystem paths are used.
+- Fixed trigger listener cleanup and reduced sensitive debug logging.
 
-- **Removed** outbound POST to `http://ls.telepilot.co:4413` in the credential test handler
-  (`credentials/TelePilotApi.credentials.ts`). The endpoint is vendor-controlled, uses plain HTTP,
-  and its purpose is unverified. The `test` block and unused `ICredentialTestRequest` import were
-  both removed. Credentials are validated at first use against Telegram MTProto directly.
+## 0.5.2 security baseline - 2026-05
 
-### Build
+- Removed the original credential test request to `http://ls.telepilot.co:4413`.
+- Documented the broken original TDLib binary distribution.
+- Documented the verified Alpine/musl `libtdjson.so` rebuild hash.
 
-- **Rebuilt** `libtdjson.so` from official `tdlib/td` source (commit `66234ae2537a99ec0eaf7b0857245a6e5c2d2bc9`).
-  Vendor distribution URL returns HTTP 404 for all variants; original binary is unavailable.
-- **Added** glibc build (Ubuntu 20.04 / gcc 9.4.0): SHA256 `0ee03d6e3b49acbb443b46daa5d7b64e470d86b6f681f4f432eb13ac7e84354a`.
-  Documented as incompatible with Alpine-based n8n (musl Node.js).
-- **Added** musl build (Alpine 3.16 / gcc 11.2.1 / musl 1.2.3): SHA256 `9f9817d0909fbe6db6c056a5f3b5ead043240565d756858021d68d26cf418fde`.
-  Verified compatible with n8n 2.13.4 on Alpine Linux v3.22. Installed in production.
-- **Documented** binary replacement procedure: vendor CDN is dead; binary must be rebuilt and
-  placed manually after every `npm install` or n8n container update.
+## Upstream
 
-### Documentation
-
-- **Added** `SECURITY.md` — full audit findings, diffs, binary hashes, and recommendations
-- **Updated** `README.md` — security changes, installation notes, binary rebuild instructions
-- **Added** `CHANGELOG.md` — this file
-- **Added** `audit-report.md` — source code audit results
-- **Added** `dependency-report.md` — dependency and supply chain audit results
-- **Added** `hash-comparison.txt` — binary SHA256 records for both builds
-- **Added** `VERDICT.md` — overall audit verdict and recommended actions
-- **Added** `fix-report.md` — detailed description of each fix applied
-- **Added** `install-report.md` — VPS deployment steps and verification
-
----
-
-## [upstream] — original @telepilotco/n8n-nodes-telepilot
-
-See https://github.com/telepilotco/n8n-nodes-telepilot
+Originally based on the MIT-licensed project: https://github.com/telepilotco/n8n-nodes-telepilot

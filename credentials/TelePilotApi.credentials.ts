@@ -10,10 +10,9 @@ export class TelePilotApi implements ICredentialType {
 		{
 			displayName: 'App api_id',
 			name: 'apiId',
-			type: 'string',
-			placeholder: '12348745646878',
-			default: '',
-			description: 'TBD',
+			type: 'number',
+			default: 0,
+			description: 'Telegram application api_id from my.telegram.org',
 			required: true,
 		},
 		{
@@ -22,7 +21,7 @@ export class TelePilotApi implements ICredentialType {
 			type: 'string',
 			placeholder: '17d2f8ab587',
 			default: '',
-			description: 'TBD',
+			description: 'Telegram application api_hash from my.telegram.org',
 			required: true,
 		},
 		{
